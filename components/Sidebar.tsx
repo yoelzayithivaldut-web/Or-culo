@@ -51,6 +51,12 @@ export const Sidebar = ({ isOpen, toggle }: { isOpen: boolean; toggle: () => voi
     await signOut();
   };
 
+  const handleLinkClick = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      toggle();
+    }
+  };
+
   return (
     <>
       <AnimatePresence>
@@ -60,14 +66,17 @@ export const Sidebar = ({ isOpen, toggle }: { isOpen: boolean; toggle: () => voi
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={toggle}
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 lg:hidden"
           />
         )}
       </AnimatePresence>
 
       <motion.aside
         initial={false}
-        animate={{ x: isOpen ? 0 : -280 }}
+        animate={{ 
+          x: isOpen ? 0 : -280,
+          width: 280
+        }}
         className={cn(
           "fixed top-0 left-0 bottom-0 w-[280px] bg-[#0A0A0A] border-r border-[#D4AF37]/20 z-50 flex flex-col transition-all duration-300 lg:translate-x-0",
           !isOpen && "lg:w-[80px]"
@@ -92,6 +101,7 @@ export const Sidebar = ({ isOpen, toggle }: { isOpen: boolean; toggle: () => voi
               <Link
                 key={item.path}
                 href={item.path}
+                onClick={handleLinkClick}
                 className={cn(
                   "group flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300",
                   isActive 

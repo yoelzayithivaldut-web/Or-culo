@@ -229,22 +229,22 @@ export default function Onboarding() {
   const currentStep = steps[step - 1];
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#D4AF37]/10 blur-[120px] rounded-full" />
+    <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-4 md:p-6 relative overflow-hidden">
+      <div className="absolute top-[-10%] right-[-10%] w-[60%] md:w-[40%] h-[60%] md:h-[40%] bg-[#D4AF37]/10 blur-[80px] md:blur-[120px] rounded-full" />
       
-      <div className="max-w-xl w-full space-y-12 relative z-10">
+      <div className="max-w-xl w-full space-y-8 md:space-y-12 relative z-10">
         <div className="flex items-center justify-between">
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 md:gap-2">
             {steps.map((s, i) => (
               <div 
                 key={s.id} 
                 className={`h-1 rounded-full transition-all duration-500 ${
-                  i + 1 <= step ? 'w-10 bg-[#D4AF37]' : 'w-6 bg-white/10'
+                  i + 1 <= step ? 'w-6 md:w-10 bg-[#D4AF37]' : 'w-4 md:w-6 bg-white/10'
                 }`} 
               />
             ))}
           </div>
-          <span className="text-xs text-gray-500 uppercase tracking-widest font-bold">Passo {step} de {steps.length}</span>
+          <span className="text-[10px] md:text-xs text-gray-500 uppercase tracking-widest font-bold">Passo {step} de {steps.length}</span>
         </div>
 
         <AnimatePresence mode="wait">
@@ -253,27 +253,27 @@ export default function Onboarding() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="space-y-8"
+            className="space-y-6 md:space-y-8"
           >
-            <div className="space-y-4">
-              <div className="w-16 h-16 bg-[#D4AF37]/10 rounded-3xl flex items-center justify-center">
-                <currentStep.icon className="text-[#D4AF37] w-8 h-8" />
+            <div className="space-y-3 md:space-y-4">
+              <div className="w-12 h-12 md:w-16 md:h-16 bg-[#D4AF37]/10 rounded-2xl md:rounded-3xl flex items-center justify-center">
+                <currentStep.icon className="text-[#D4AF37] w-6 h-6 md:w-8 md:h-8" />
               </div>
-              <h1 className="text-4xl font-bold tracking-tight">{currentStep.title}</h1>
-              <p className="text-gray-400 text-lg">{currentStep.description}</p>
+              <h1 className="text-2xl md:text-4xl font-bold tracking-tight">{currentStep.title}</h1>
+              <p className="text-gray-400 text-base md:text-lg">{currentStep.description}</p>
             </div>
 
-            <div className="py-4">
+            <div className="py-2 md:py-4">
               {currentStep.content}
             </div>
           </motion.div>
         </AnimatePresence>
 
-        <div className="flex items-center justify-between pt-8 border-t border-white/5">
+        <div className="flex items-center justify-between pt-6 md:pt-8 border-t border-white/5">
           <button
             onClick={() => setStep(Math.max(1, step - 1))}
             disabled={step === 1}
-            className="text-gray-500 hover:text-white transition-all disabled:opacity-0"
+            className="text-gray-500 hover:text-white transition-all disabled:opacity-0 text-sm md:text-base"
           >
             Voltar
           </button>
@@ -288,24 +288,24 @@ export default function Onboarding() {
                 step === 4 ? !mainGenre :
                 false
               }
-              className="bg-white text-black px-8 py-4 rounded-2xl font-bold flex items-center gap-2 hover:bg-gray-200 transition-all disabled:opacity-50"
+              className="bg-white text-black px-6 md:px-8 py-3 md:py-4 rounded-2xl font-bold flex items-center gap-2 hover:bg-gray-200 transition-all disabled:opacity-50 text-sm md:text-base"
             >
-              Próximo <ChevronRight size={20} />
+              Próximo <ChevronRight size={18} />
             </button>
           ) : (
             <button
               onClick={handleComplete}
               disabled={isLoading || !writingGoal}
-              className="bg-[#D4AF37] text-black px-10 py-4 rounded-2xl font-bold flex items-center gap-2 hover:bg-[#B8962E] transition-all shadow-[0_10px_20px_rgba(212,175,55,0.2)] disabled:opacity-50"
+              className="bg-[#D4AF37] text-black px-8 md:px-10 py-3 md:py-4 rounded-2xl font-bold flex items-center gap-2 hover:bg-[#B8962E] transition-all shadow-[0_10px_20px_rgba(212,175,55,0.2)] disabled:opacity-50 text-sm md:text-base"
             >
-              {isLoading ? <Loader2 className="animate-spin" /> : <Sparkles size={20} />}
-              Finalizar Configuração
+              {isLoading ? <Loader2 className="animate-spin" /> : <Sparkles size={18} />}
+              Finalizar
             </button>
           )}
         </div>
 
-        <div className="flex items-center justify-center gap-2 text-gray-600 text-[10px] uppercase tracking-widest">
-          <ShieldCheck size={12} /> Seus dados estão protegidos por criptografia de ponta a ponta
+        <div className="flex items-center justify-center gap-2 text-gray-600 text-[8px] md:text-[10px] uppercase tracking-widest text-center">
+          <ShieldCheck size={10} /> Dados protegidos por criptografia
         </div>
       </div>
     </div>

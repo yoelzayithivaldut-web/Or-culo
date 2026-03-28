@@ -9,9 +9,15 @@ import { useAuth } from '@/components/AuthProvider';
 import { Logo } from '@/components/Logo';
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { isBypass, signOut, user } = useAuth();
   const router = useRouter();
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      setIsSidebarOpen(true);
+    }
+  }, []);
 
   const handleExitBypass = () => {
     signOut();
@@ -45,14 +51,14 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         </button>
       </header>
 
-      <div className="flex-1 flex relative">
+      <div className="flex-1 flex relative overflow-hidden">
         <Sidebar isOpen={isSidebarOpen} toggle={() => setIsSidebarOpen(!isSidebarOpen)} />
         
         <main className={cn(
-          "flex-1 transition-all duration-300 min-h-screen w-full",
+          "flex-1 transition-all duration-300 min-h-screen w-full overflow-y-auto",
           isSidebarOpen ? "lg:pl-[280px]" : "lg:pl-[80px]"
         )}>
-          <div className="p-6 lg:p-10 max-w-7xl mx-auto">
+          <div className="p-4 md:p-6 lg:p-10 max-w-7xl mx-auto">
             {children}
           </div>
         </main>

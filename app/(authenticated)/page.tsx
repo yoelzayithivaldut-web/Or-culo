@@ -47,23 +47,23 @@ const data = [
 const StatCard = ({ icon: Icon, label, value, trend, colorClass }: any) => (
   <motion.div
     whileHover={{ y: -5 }}
-    className="bg-[#0A0A0A] border border-white/10 p-6 rounded-3xl relative overflow-hidden group"
+    className="bg-[#0A0A0A] border border-white/10 p-5 md:p-6 rounded-3xl relative overflow-hidden group"
   >
-    <div className={cn("absolute top-0 right-0 w-32 h-32 blur-[60px] rounded-full -mr-16 -mt-16 transition-all", colorClass.bg)} />
-    <div className="flex items-start justify-between mb-4">
-      <div className={cn("p-3 rounded-2xl bg-white/5", colorClass.text)}>
-        <Icon className="w-6 h-6" />
+    <div className={cn("absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 blur-[40px] md:blur-[60px] rounded-full -mr-12 -mt-12 md:-mr-16 md:-mt-16 transition-all", colorClass.bg)} />
+    <div className="flex items-start justify-between mb-3 md:mb-4">
+      <div className={cn("p-2.5 md:p-3 rounded-2xl bg-white/5", colorClass.text)}>
+        <Icon className="w-5 h-5 md:w-6 md:h-6" />
       </div>
       {trend && (
-        <div className="flex items-center gap-1 text-green-500 text-sm font-medium">
-          <TrendingUp className="w-4 h-4" />
+        <div className="flex items-center gap-1 text-green-500 text-xs md:text-sm font-medium">
+          <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4" />
           {trend}
         </div>
       )}
     </div>
-    <div className="space-y-1">
-      <p className="text-gray-400 text-sm font-medium uppercase tracking-wider">{label}</p>
-      <h3 className="text-3xl font-bold text-white">{value}</h3>
+    <div className="space-y-0.5 md:space-y-1">
+      <p className="text-gray-400 text-[10px] md:text-sm font-medium uppercase tracking-wider">{label}</p>
+      <h3 className="text-2xl md:text-3xl font-bold text-white">{value}</h3>
     </div>
   </motion.div>
 );
@@ -116,15 +116,15 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-10">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className="space-y-6 md:space-y-10">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 md:gap-6">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2">Olá, {user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Escritor'}</h1>
-          <p className="text-gray-400">Bem-vindo de volta ao seu centro de comando literário.</p>
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-1 md:mb-2">Olá, {user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Escritor'}</h1>
+          <p className="text-gray-400 text-sm md:text-base">Bem-vindo de volta ao seu centro de comando literário.</p>
         </div>
         <Link 
           href="/books"
-          className="flex items-center gap-2 bg-[#D4AF37] text-black px-6 py-3 rounded-2xl font-bold hover:bg-[#B8962E] transition-all shadow-[0_10px_20px_rgba(212,175,55,0.2)]"
+          className="flex items-center justify-center gap-2 bg-[#D4AF37] text-black px-6 py-3 rounded-2xl font-bold hover:bg-[#B8962E] transition-all shadow-[0_10px_20px_rgba(212,175,55,0.2)] w-full sm:w-auto"
         >
           <Plus className="w-5 h-5" />
           Novo Projeto

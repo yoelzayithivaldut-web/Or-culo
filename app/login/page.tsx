@@ -293,13 +293,13 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#D4AF37]/10 blur-[120px] rounded-full" />
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-md w-full bg-[#0A0A0A] border border-[#D4AF37]/20 p-10 rounded-3xl shadow-2xl relative z-10">
-        <div className="text-center mb-10">
-          <Logo size="lg" className="mb-6" />
-          <p className="text-gray-400 text-sm">CRM inteligente para a nova era literária.</p>
-          <div className="mt-4 flex items-center justify-center gap-2">
+    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 md:p-6 relative overflow-hidden">
+      <div className="absolute top-[-10%] left-[-10%] w-[60%] md:w-[40%] h-[60%] md:h-[40%] bg-[#D4AF37]/10 blur-[80px] md:blur-[120px] rounded-full" />
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-md w-full bg-[#0A0A0A] border border-[#D4AF37]/20 p-6 md:p-10 rounded-3xl shadow-2xl relative z-10">
+        <div className="text-center mb-8 md:mb-10">
+          <Logo size="md" className="mb-4 md:mb-6 mx-auto" />
+          <p className="text-gray-400 text-xs md:text-sm">CRM inteligente para a nova era literária.</p>
+          <div className="mt-3 md:mt-4 flex items-center justify-center gap-2">
             <div className={cn(
               "w-2 h-2 rounded-full",
               connectionStatus === 'checking' ? "bg-yellow-500 animate-pulse" :
