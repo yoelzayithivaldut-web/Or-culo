@@ -167,12 +167,18 @@ export default function Login() {
   };
 
   const handleAuthError = (error: any) => {
+    console.error('Oráculo: Auth error:', error);
     const msg = error.message?.toLowerCase() || '';
-    if (msg.includes('email not confirmed')) setEmailNotConfirmed(true);
-    else if (msg.includes('rate limit')) {
+    if (msg.includes('email not confirmed')) {
+      setEmailNotConfirmed(true);
+    } else if (msg.includes('rate limit')) {
       toast.error('Limite atingido. Aguarde 1 minuto.');
       setCooldown(60);
-    } else toast.error('Erro', { description: error.message });
+    } else {
+      toast.error(`Erro: ${error.message}`, { 
+        description: `Código: ${error.code || 'AUTH_ERROR'}` 
+      });
+    }
   };
 
   const handleAdminBypass = async () => {

@@ -60,6 +60,20 @@ export default function Onboarding() {
     fetchUser();
   }, [router]);
 
+  useEffect(() => {
+    const checkTable = async () => {
+      try {
+        const { error } = await supabase.from('users').select('id').limit(1);
+        if (error && error.code === '42P01') {
+          toast.error('A tabela "users" não foi encontrada no Supabase. Por favor, execute a migração SQL.');
+        }
+      } catch (e) {
+        console.error('Error checking users table:', e);
+      }
+    };
+    checkTable();
+  }, []);
+
   const handleComplete = async () => {
     setIsLoading(true);
     try {
@@ -75,19 +89,32 @@ export default function Onboarding() {
 
       // Update auth metadata too if not in bypass mode
       if (localStorage.getItem('ADMIN_BYPASS') !== 'true') {
-        await supabase.auth.updateUser({
-          data: { onboarding_completed: true }
-        });
+        try {
+          const { error: authError } = await supabase.auth.updateUser({
+            data: { onboarding_completed: true }
+          });
+          if (authError) {
+            console.error('Error updating auth metadata:', authError);
+            // We don't throw here to allow the process to continue if DB save worked
+          }
+        } catch (e) {
+          console.error('Auth metadata update failed:', e);
+        }
       }
 
       toast.success('Perfil configurado com sucesso!');
       
       // Refresh auth state to update onboardingCompleted
-      await refreshAuth();
+      try {
+        await refreshAuth();
+      } catch (e) {
+        console.error('Auth refresh failed after onboarding:', e);
+      }
 
       router.push('/plans');
-    } catch (error) {
-      toast.error('Erro ao salvar perfil.');
+    } catch (error: any) {
+      console.error('Onboarding save error:', error);
+      toast.error(`Erro ao salvar perfil: ${error.message || 'Erro desconhecido'}`);
     } finally {
       setIsLoading(false);
     }

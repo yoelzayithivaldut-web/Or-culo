@@ -3,7 +3,7 @@
 
 -- 1. Users table (Profile)
 CREATE TABLE IF NOT EXISTS public.users (
-    id UUID PRIMARY KEY DEFAULT auth.uid(),
+    id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
     display_name TEXT,
     address TEXT,
@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS public.users (
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 -- Policies for users
+DROP POLICY IF EXISTS "Users can only read their own data" ON public.users;
+DROP POLICY IF EXISTS "Users can only update their own data" ON public.users;
+DROP POLICY IF EXISTS "Users can insert their own data" ON public.users;
+
 CREATE POLICY "Users can only read their own data" ON public.users
     FOR SELECT USING (auth.uid() = id);
 
@@ -111,10 +115,12 @@ BEGIN
     VALUES (
         NEW.id, 
         NEW.email, 
-        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email),
+        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email, 'Escritor'),
         false
     )
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        display_name = COALESCE(EXCLUDED.display_name, public.users.display_name);
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

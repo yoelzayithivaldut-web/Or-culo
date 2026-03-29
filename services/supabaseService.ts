@@ -140,9 +140,14 @@ export const supabaseService = {
 
     if (error) {
       console.error(`Error adding document to ${table}:`, error);
-      toast.error(`Erro ao salvar em ${table}: ${error.message}`);
-      throw error;
+      toast.error(`Erro ao salvar em ${table}: ${error.message} (${error.code})`);
+      throw new Error(`Erro ao adicionar documento em ${table}: ${error.message}`);
     }
+
+    if (!insertedData) {
+      throw new Error(`Erro ao adicionar documento em ${table}: Nenhum dado retornado`);
+    }
+
     return insertedData.id;
   },
 
@@ -182,6 +187,7 @@ export const supabaseService = {
     const id = user.id;
     const email = user.email;
     
+    console.log('Oráculo: Saving user data:', { id, email, ...userData });
     const { error } = await supabase
       .from('users')
       .upsert({
@@ -189,11 +195,16 @@ export const supabaseService = {
         email,
         ...userData,
         updated_at: new Date().toISOString()
-      });
+      }, { onConflict: 'id' });
 
     if (error) {
-      console.error('Error saving user:', error);
-      throw error;
+      console.error('Error saving user to Supabase:', {
+        error,
+        userId: id,
+        email,
+        data: userData
+      });
+      throw new Error(`Erro ao salvar dados do usuário: ${error.message} (${error.code})`);
     }
   },
 

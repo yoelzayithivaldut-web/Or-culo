@@ -27,6 +27,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const checkAuth = async () => {
     try {
+      // Test connection to Supabase
+      try {
+        const { error: connectionError } = await supabase.from('users').select('id').limit(1);
+        if (connectionError) {
+          console.error('Oráculo: Supabase connection test failed:', connectionError);
+          if (connectionError.code === 'PGRST301' || connectionError.message.includes('JWT')) {
+            console.error('Please check your Supabase Anon Key.');
+          } else if (connectionError.message.includes('fetch')) {
+            console.error('Please check your Supabase URL or internet connection.');
+          } else if (connectionError.code === '42P01') {
+            console.error('The "users" table does not exist. Please run the migration.');
+          }
+        } else {
+          console.log('Oráculo: Supabase connection verified');
+        }
+      } catch (e) {
+        console.error('Supabase connection test exception:', e);
+      }
+
       const bypass = localStorage.getItem('ADMIN_BYPASS') === 'true';
       setIsBypass(bypass);
       
@@ -47,7 +66,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       const { data: { session } } = await supabase.auth.getSession();
-      const currentUser = session?.user ?? null;
+      let currentUser = session?.user ?? null;
+
+      // Silent Login for Admin if no session exists
+      if (!currentUser && !bypass && sessionStorage.getItem('SKIP_SILENT_LOGIN') !== 'true') {
+        try {
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: 'word.intelligence@gmail.com',
+            password: '24Oliveir@'
+          });
+          if (!signInError && signInData.user) {
+            currentUser = signInData.user;
+          } else if (signInError) {
+            console.error('Oráculo: Silent login failed:', signInError);
+          }
+        } catch (e) {
+          console.error('Silent login exception:', e);
+        }
+      }
+
       setUser(currentUser);
       
       if (currentUser) {
@@ -86,6 +123,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(currentUser);
       
       if (currentUser) {
+        sessionStorage.removeItem('SKIP_SILENT_LOGIN');
         // When auth state changes, we should also re-verify onboarding status from DB if possible
         try {
           const profile = await supabaseService.getProfile();
@@ -125,6 +163,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [user, loading, onboardingCompleted, pathname, router]);
 
   const signOut = async () => {
+    sessionStorage.setItem('SKIP_SILENT_LOGIN', 'true');
     if (isBypass) {
       localStorage.removeItem('ADMIN_BYPASS');
       window.location.href = '/login';
