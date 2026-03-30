@@ -1,168 +1,129 @@
--- Migration for Supabase (PostgreSQL)
--- This schema matches the existing Firestore structure
-
--- 1. Users table (Profile)
-CREATE TABLE IF NOT EXISTS public.users (
-    id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
-    email TEXT UNIQUE NOT NULL,
-    display_name TEXT,
-    onboarding_completed BOOLEAN DEFAULT false,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
+-- Create users table (Profile)
+create table users (
+  id uuid references auth.users on delete cascade primary key,
+  email text unique not null,
+  display_name text,
+  onboarding_completed boolean default false,
+  address text,
+  phone text,
+  education_level text,
+  main_genre text,
+  writing_goal text,
+  plan text default 'free',
+  role text default 'user',
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Robust column check and addition
-DO $$ 
-BEGIN 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='address') THEN
-        ALTER TABLE public.users ADD COLUMN address TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='phone') THEN
-        ALTER TABLE public.users ADD COLUMN phone TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='education_level') THEN
-        ALTER TABLE public.users ADD COLUMN education_level TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='main_genre') THEN
-        ALTER TABLE public.users ADD COLUMN main_genre TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='writing_goal') THEN
-        ALTER TABLE public.users ADD COLUMN writing_goal TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='plan') THEN
-        ALTER TABLE public.users ADD COLUMN plan TEXT DEFAULT 'free';
-    END IF;
-END $$;
+-- Set up Row Level Security (RLS) for users
+alter table users enable row level security;
 
--- Enable RLS for users
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+create policy "Users can only read their own data"
+  on users for select
+  using ( auth.uid() = id or (select role from users where id = auth.uid()) = 'admin' );
 
--- Policies for users
-DROP POLICY IF EXISTS "Users can only read their own data" ON public.users;
-DROP POLICY IF EXISTS "Users can only update their own data" ON public.users;
-DROP POLICY IF EXISTS "Users can insert their own data" ON public.users;
+create policy "Users can insert their own data"
+  on users for insert
+  with check ( auth.uid() = id );
 
-CREATE POLICY "Users can only read their own data" ON public.users
-    FOR SELECT USING (auth.uid() = id);
+create policy "Users can update their own data"
+  on users for update
+  using ( auth.uid() = id or (select role from users where id = auth.uid()) = 'admin' );
 
-CREATE POLICY "Users can only update their own data" ON public.users
-    FOR UPDATE USING (auth.uid() = id);
-
-CREATE POLICY "Users can insert their own data" ON public.users
-    FOR INSERT WITH CHECK (auth.uid() = id);
-
--- 2. Books table
-CREATE TABLE IF NOT EXISTS public.books (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    author TEXT,
-    genre TEXT,
-    synopsis TEXT,
-    content TEXT,
-    status TEXT DEFAULT 'writing',
-    language TEXT DEFAULT 'pt-BR',
-    cover_url TEXT,
-    owner_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
+-- Create books table
+create table books (
+  id uuid default gen_random_uuid() primary key,
+  owner_id uuid references auth.users on delete cascade not null,
+  title text not null,
+  author text,
+  genre text,
+  synopsis text,
+  content text,
+  status text default 'writing',
+  language text default 'pt-BR',
+  cover_url text,
+  progress integer default 0,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Enable RLS for books
-ALTER TABLE public.books ENABLE ROW LEVEL SECURITY;
+-- Set up RLS for books
+alter table books enable row level security;
 
--- Policies for books
-CREATE POLICY "Users can only read their own books" ON public.books
-    FOR SELECT USING (auth.uid() = owner_id);
+create policy "Users can view their own books."
+  on books for select
+  using ( auth.uid() = owner_id or (select role from users where id = auth.uid()) = 'admin' );
 
-CREATE POLICY "Users can only create their own books" ON public.books
-    FOR INSERT WITH CHECK (auth.uid() = owner_id);
+create policy "Users can insert their own books."
+  on books for insert
+  with check ( auth.uid() = owner_id );
 
-CREATE POLICY "Users can only update their own books" ON public.books
-    FOR UPDATE USING (auth.uid() = owner_id);
+create policy "Users can update their own books."
+  on books for update
+  using ( auth.uid() = owner_id or (select role from users where id = auth.uid()) = 'admin' );
 
-CREATE POLICY "Users can only delete their own books" ON public.books
-    FOR DELETE USING (auth.uid() = owner_id);
+create policy "Users can delete their own books."
+  on books for delete
+  using ( auth.uid() = owner_id or (select role from users where id = auth.uid()) = 'admin' );
 
--- 3. Clients table
-CREATE TABLE IF NOT EXISTS public.clients (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    email TEXT,
-    notes TEXT,
-    owner_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
+-- Create clients table
+create table clients (
+  id uuid default gen_random_uuid() primary key,
+  owner_id uuid references auth.users on delete cascade not null,
+  name text not null,
+  email text,
+  notes text,
+  phone text,
+  status text default 'active',
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Enable RLS for clients
-ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
+-- Set up RLS for clients
+alter table clients enable row level security;
 
--- Policies for clients
-CREATE POLICY "Users can only read their own clients" ON public.clients
-    FOR SELECT USING (auth.uid() = owner_id);
+create policy "Users can view their own clients."
+  on clients for select
+  using ( auth.uid() = owner_id or (select role from users where id = auth.uid()) = 'admin' );
 
-CREATE POLICY "Users can only create their own clients" ON public.clients
-    FOR INSERT WITH CHECK (auth.uid() = owner_id);
+create policy "Users can insert their own clients."
+  on clients for insert
+  with check ( auth.uid() = owner_id );
 
-CREATE POLICY "Users can only update their own clients" ON public.clients
-    FOR UPDATE USING (auth.uid() = owner_id);
+create policy "Users can update their own clients."
+  on clients for update
+  using ( auth.uid() = owner_id or (select role from users where id = auth.uid()) = 'admin' );
 
-CREATE POLICY "Users can only delete their own clients" ON public.clients
-    FOR DELETE USING (auth.uid() = owner_id);
+create policy "Users can delete their own clients."
+  on clients for delete
+  using ( auth.uid() = owner_id or (select role from users where id = auth.uid()) = 'admin' );
 
--- Trigger for updatedAt
-CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- Create a trigger to handle new user profiles
+create or replace function public.handle_new_user()
+returns trigger as $$
+declare
+  is_admin boolean;
+begin
+  is_admin := (new.email = 'word.intelligence@gmail.com' or new.email = 'yoelzayithivaldut@gmail.com');
 
-CREATE TRIGGER set_updated_at_users BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER set_updated_at_books BEFORE UPDATE ON public.books FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER set_updated_at_clients BEFORE UPDATE ON public.clients FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+  insert into public.users (id, email, display_name, onboarding_completed, role, plan)
+  values (
+    new.id, 
+    new.email, 
+    coalesce(new.raw_user_meta_data->>'full_name', new.email, 'Escritor'),
+    case when is_admin then true else false end,
+    case when is_admin then 'admin' else 'user' end,
+    case when is_admin then 'premium' else 'free' end
+  )
+  on conflict (id) do update set
+    email = excluded.email,
+    display_name = coalesce(excluded.display_name, public.users.display_name),
+    role = case when is_admin then 'admin' else public.users.role end,
+    plan = case when is_admin then 'premium' else public.users.plan end;
+  return new;
+end;
+$$ language plpgsql security definer;
 
--- 4. Auth Trigger (Sync auth.users to public.users)
--- This ensures a profile exists as soon as a user signs up
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO public.users (id, email, display_name, onboarding_completed)
-    VALUES (
-        NEW.id, 
-        NEW.email, 
-        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email, 'Escritor'),
-        false
-    )
-    ON CONFLICT (id) DO UPDATE SET
-        email = EXCLUDED.email,
-        display_name = COALESCE(EXCLUDED.display_name, public.users.display_name);
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Trigger the function every time a user is created
-CREATE OR REPLACE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
--- 5. Sync existing users (for those who signed up before the trigger existed)
-INSERT INTO public.users (id, email, display_name, onboarding_completed)
-SELECT 
-    id, 
-    email, 
-    COALESCE(raw_user_meta_data->>'full_name', email, 'Escritor'),
-    false
-FROM auth.users
-ON CONFLICT (id) DO NOTHING;
-
--- 6. Final Permissions & Cache Refresh
--- Ensure the API has access to everything in public schema
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
-
--- Force PostgREST to reload the schema cache
-NOTIFY pgrst, 'reload schema';
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();

@@ -28,6 +28,8 @@ const getMockData = (table: string) => {
         email: 'admin@test.com', 
         display_name: 'Administrador de Teste', 
         onboarding_completed: true,
+        role: 'admin',
+        plan: 'premium',
         created_at: new Date().toISOString() 
       },
     ];
@@ -244,6 +246,8 @@ export const supabaseService = {
         email: 'admin@test.com',
         display_name: 'Administrador de Teste',
         onboarding_completed: true,
+        role: 'admin',
+        plan: 'premium',
         created_at: new Date().toISOString()
       };
     }

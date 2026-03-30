@@ -29,7 +29,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useSearchParams } from 'next/navigation';
 
 export default function Books() {
-  const { user } = useAuth();
+  const { user, plan, isUnlimited } = useAuth();
   const searchParams = useSearchParams();
   const [books, setBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,11 +40,27 @@ export default function Books() {
   const [isGeneratingSynopsis, setIsGeneratingSynopsis] = useState(false);
   const router = useRouter();
 
+  const getPlanLimit = () => {
+    if (isUnlimited) return Infinity;
+    if (plan === 'basic') return 5;
+    return 1; // free
+  };
+
+  const handleOpenNewModal = () => {
+    const limit = getPlanLimit();
+    if (books.length >= limit) {
+      toast.error(`Limite do plano atingido (${limit} livros). Faça upgrade para continuar.`);
+      router.push('/plans');
+      return;
+    }
+    setShowNewModal(true);
+  };
+
   useEffect(() => {
     if (searchParams.get('new') === 'true') {
-      setShowNewModal(true);
+      handleOpenNewModal();
     }
-  }, [searchParams]);
+  }, [searchParams, books.length]);
 
   useEffect(() => {
     if (user) {
@@ -70,6 +86,12 @@ export default function Books() {
   const handleCreateBook = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBook.title || !user) return;
+
+    const limit = getPlanLimit();
+    if (books.length >= limit) {
+      toast.error('Limite de livros atingido.');
+      return;
+    }
 
     try {
       const id = await supabaseService.addDocument('books', {
@@ -132,7 +154,7 @@ export default function Books() {
           <p className="text-gray-400">Gerencie sua biblioteca de projetos literários.</p>
         </div>
         <button 
-          onClick={() => setShowNewModal(true)}
+          onClick={handleOpenNewModal}
           className="flex items-center gap-2 bg-[#D4AF37] text-black px-6 py-3 rounded-2xl font-bold hover:bg-[#B8962E] transition-all shadow-[0_10px_20px_rgba(212,175,55,0.2)]"
         >
           <Plus className="w-5 h-5" />
@@ -173,7 +195,7 @@ export default function Books() {
             Você ainda não criou nenhum livro. Comece sua jornada literária agora mesmo!
           </p>
           <button 
-            onClick={() => setShowNewModal(true)}
+            onClick={handleOpenNewModal}
             className="bg-[#D4AF37] text-black px-8 py-3 rounded-xl font-bold hover:bg-[#B8962E] transition-all"
           >
             Criar Meu Primeiro Livro

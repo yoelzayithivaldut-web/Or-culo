@@ -15,7 +15,7 @@ import { Logo } from '@/components/Logo';
 import { useAuth } from '@/components/AuthProvider';
 
 export default function Login() {
-  const { refreshAuth } = useAuth();
+  const { user, isBypass, refreshAuth } = useAuth();
   const router = useRouter();
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -49,12 +49,18 @@ export default function Login() {
   }, [cooldown]);
 
   useEffect(() => {
+    // Redirection is now handled by AuthProvider
+  }, [user, router]);
+
+  useEffect(() => {
     console.log('Oráculo: Checking Supabase connection...');
+    // Use a simple ping to check connection
     supabase.auth.getSession()
-      .then(({ error }) => {
+      .then(({ data, error }) => {
         if (error) {
           console.error('Oráculo: Supabase connection error:', error);
           setConnectionStatus('error');
+          // Don't toast here to avoid annoying the user on initial load
         } else {
           console.log('Oráculo: Supabase connection OK');
           setConnectionStatus('ok');
@@ -70,11 +76,14 @@ export default function Login() {
     if (error) toast.error('Erro de Autenticação', { description: error });
   }, []);
 
+  const isAdminEmail = email === 'word.intelligence@gmail.com' || email === 'yoelzayithivaldut@gmail.com';
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // If connection is error, we still let them try, but warn them
     if (connectionStatus === 'error') {
-      toast.error('Erro de Conexão', { description: 'Supabase não configurado ou inacessível. Use o modo Admin abaixo.' });
-      return;
+      toast.warning('Aviso de Conexão', { description: 'Supabase pode estar inacessível. Tentando mesmo assim...' });
     }
     if (isSignUp && password !== confirmPassword) return toast.error('Senhas não coincidem');
     if (isSignUp && !fullName) return toast.error('Informe seu nome completo');
@@ -93,15 +102,39 @@ export default function Login() {
             }
           }
         });
-        if (error) throw error;
-        if (data.user && data.session) window.location.href = '/onboarding';
-        else setEmailNotConfirmed(true);
+        if (data.user && data.session) {
+          toast.success('Conta criada com sucesso!');
+          // AuthProvider will handle redirection
+        } else {
+          setEmailNotConfirmed(true);
+        }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        
+        if (error) {
+          // Special handling for admin emails: if login fails, try auto-signup
+          const isAdminEmail = email === 'word.intelligence@gmail.com' || email === 'yoelzayithivaldut@gmail.com';
+          if (isAdminEmail && (error.message.includes('Invalid login credentials') || error.status === 400)) {
+            console.log('Oráculo: Admin email detected, attempting auto-signup...');
+            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+              email,
+              password,
+              options: {
+                data: { full_name: 'Administrador', onboarding_completed: true }
+              }
+            });
+            if (!signUpError && signUpData.session) {
+              toast.success('Conta de administrador criada e logada!');
+              // AuthProvider will handle redirection
+              return;
+            }
+          }
+          throw error;
+        }
+        
         if (data.session) {
-          const onboardingCompleted = data.user?.user_metadata?.onboarding_completed;
-          window.location.href = onboardingCompleted ? '/' : '/onboarding';
+          toast.success('Login realizado com sucesso!');
+          // AuthProvider will handle redirection
         }
       }
     } catch (error: any) {
@@ -116,7 +149,10 @@ export default function Login() {
     try {
       const { data, error } = await supabase.auth.signInAnonymously();
       if (error) throw error;
-      if (data.session) window.location.href = '/';
+      if (data.session) {
+        toast.success('Entrando como convidado...');
+        // AuthProvider will handle redirection
+      }
     } catch (error: any) {
       toast.error('Login Anônimo desativado no Supabase');
     } finally {
@@ -182,10 +218,14 @@ export default function Login() {
   };
 
   const handleAdminBypass = async () => {
-    localStorage.setItem('ADMIN_BYPASS', 'true');
-    toast.success('Modo Admin (Word Intelligence) ativado!');
-    await refreshAuth();
-    router.push('/');
+    try {
+      localStorage.setItem('ADMIN_BYPASS', 'true');
+      toast.success('Modo Admin (Word Intelligence) ativado!');
+      await refreshAuth();
+    } catch (error) {
+      console.error('Bypass error:', error);
+      toast.error('Erro ao ativar modo bypass');
+    }
   };
 
   const handlePasswordReset = async () => {
@@ -240,8 +280,7 @@ export default function Login() {
       if (error) throw error;
       if (data.session) {
         toast.success('E-mail confirmado!');
-        const onboardingCompleted = data.user?.user_metadata?.onboarding_completed;
-        window.location.href = onboardingCompleted ? '/' : '/onboarding';
+        // AuthProvider will handle redirection
       }
     } catch (error: any) {
       toast.error('Código inválido ou expirado', { description: error.message });
@@ -410,11 +449,22 @@ export default function Login() {
             )}
             <button type="submit" disabled={isLoading} className={cn(
               "w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-all",
-              connectionStatus === 'error' ? "bg-gray-800 text-gray-500 cursor-not-allowed" : "bg-[#D4AF37] text-black hover:bg-[#B8962E]"
+              "bg-[#D4AF37] text-black hover:bg-[#B8962E]"
             )}>
               {isLoading ? <Loader2 className="animate-spin" /> : (isSignUp ? <UserPlus size={20} /> : <LogIn size={20} />)} 
               {isSignUp ? 'Criar Conta Segura' : 'Entrar na Plataforma'}
             </button>
+
+            {isAdminEmail && !isSignUp && (
+              <button
+                type="button"
+                onClick={handleAdminBypass}
+                className="w-full bg-white/5 text-[#D4AF37] py-4 rounded-2xl font-bold border border-[#D4AF37]/30 hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+              >
+                <ShieldCheck className="w-5 h-5" />
+                Acesso Direto Admin
+              </button>
+            )}
 
             {!isSignUp && (
               <div className="grid grid-cols-2 gap-4">

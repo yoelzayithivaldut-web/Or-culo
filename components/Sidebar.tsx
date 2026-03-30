@@ -16,6 +16,7 @@ import {
   Menu, 
   X, 
   Plus,
+  User,
   Book as BookIcon,
   ChevronRight,
   Sparkles,
@@ -44,6 +45,7 @@ export const Sidebar = ({ isOpen, toggle }: { isOpen: boolean; toggle: () => voi
     { icon: Languages, label: 'Tradução', path: '/translation' },
     { icon: Headphones, label: 'Audiobook', path: '/audiobook' },
     { icon: Users, label: 'Clientes / Projetos', path: '/crm' },
+    { icon: User, label: 'Meu Perfil', path: '/profile' },
     { icon: Crown, label: 'Planos', path: '/plans' },
   ];
 

@@ -38,7 +38,9 @@ export const DatabaseSetupOverlay = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (!show) return null;
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+
+  if (!show || pathname === '/login') return null;
 
   return (
     <AnimatePresence>

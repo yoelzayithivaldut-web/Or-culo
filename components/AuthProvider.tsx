@@ -11,6 +11,9 @@ interface AuthContextType {
   loading: boolean;
   onboardingCompleted: boolean | null;
   isBypass: boolean;
+  role: string;
+  plan: string;
+  isUnlimited: boolean;
   refreshAuth: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -22,17 +25,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
   const [isBypass, setIsBypass] = useState(false);
+  const [role, setRole] = useState('user');
+  const [plan, setPlan] = useState('free');
   const pathname = usePathname();
   const router = useRouter();
+  const initialLoadStarted = React.useRef(false);
+  const lastUserId = React.useRef<string | null>(null);
+  const loadingRef = React.useRef(true);
+  const onboardingRef = React.useRef<boolean | null>(null);
+
+  // Keep refs in sync with state for use in handleAuthStateChange
+  React.useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+
+  React.useEffect(() => {
+    onboardingRef.current = onboardingCompleted;
+  }, [onboardingCompleted]);
 
   const refreshAuth = async () => {
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
+    console.log('Oráculo: Manual refresh started');
+    
+    // Clear cache to ensure we get the latest profile
+    supabaseService.clearProfileCache();
     
     const bypass = localStorage.getItem('ADMIN_BYPASS') === 'true';
     setIsBypass(bypass);
     
     if (bypass) {
+      console.log('Oráculo: Admin Bypass active');
       try {
         const profile = await supabaseService.getProfile('admin-bypass-id');
         const mockUser = {
@@ -45,61 +67,74 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         };
         setUser(mockUser);
         setOnboardingCompleted(profile?.onboarding_completed ?? true);
+        setRole(profile?.role || 'admin');
+        setPlan(profile?.plan || 'premium');
       } catch (e) {
         setUser({ id: 'admin-bypass-id', email: 'admin@test.com' });
         setOnboardingCompleted(true);
+        setRole('admin');
+        setPlan('premium');
       }
       setLoading(false);
       return;
     }
 
-    let currentUser = session?.user ?? null;
-
-    // Silent Login for Admin if no session exists and not in bypass
-    if (!currentUser && sessionStorage.getItem('SKIP_SILENT_LOGIN') !== 'true') {
-      try {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: 'word.intelligence@gmail.com',
-          password: '24Oliveir@'
-        });
-        if (!signInError && signInData.user) {
-          currentUser = signInData.user;
-        } else if (signInError) {
-          console.error('Oráculo: Silent login failed:', signInError);
-        }
-      } catch (e) {
-        console.error('Silent login exception:', e);
-      }
-    }
-
-    setUser(currentUser);
-    
-    if (currentUser) {
-      sessionStorage.removeItem('SKIP_SILENT_LOGIN');
-      try {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      let currentUser = session?.user ?? null;
+      
+      if (currentUser) {
         const profile = await supabaseService.getProfile(currentUser.id);
         const isAdmin = currentUser.email === 'word.intelligence@gmail.com' || currentUser.email === 'yoelzayithivaldut@gmail.com';
         
         if (profile) {
           setOnboardingCompleted(isAdmin ? true : (profile.onboarding_completed ?? false));
+          setRole(profile.role || (isAdmin ? 'admin' : 'user'));
+          setPlan(profile.plan || (isAdmin ? 'premium' : 'free'));
         } else {
           setOnboardingCompleted(isAdmin ? true : (currentUser.user_metadata?.onboarding_completed ?? false));
+          setRole(isAdmin ? 'admin' : 'user');
+          setPlan(isAdmin ? 'premium' : 'free');
         }
-      } catch (e) {
-        const isAdmin = currentUser.email === 'word.intelligence@gmail.com' || currentUser.email === 'yoelzayithivaldut@gmail.com';
-        setOnboardingCompleted(isAdmin ? true : (currentUser.user_metadata?.onboarding_completed ?? false));
+      } else {
+        setOnboardingCompleted(false);
+        setRole('user');
+        setPlan('free');
       }
-    } else {
-      setOnboardingCompleted(false);
+      setUser(currentUser);
+    } catch (error) {
+      console.error('Oráculo: Auth refresh error:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     let isMounted = true;
+    
+    // Safety timeout: if auth takes too long, stop loading
+    const timeoutId = setTimeout(() => {
+      if (isMounted && loadingRef.current) {
+        console.warn('Oráculo: Auth initialization timed out. Forcing ready state.');
+        setLoading(false);
+      }
+    }, 5000);
 
     const handleAuthStateChange = async (session: any) => {
       if (!isMounted) return;
+      
+      const currentUser = session?.user ?? null;
+      const currentUserId = currentUser?.id ?? null;
+      
+      // If session hasn't changed and we are not in initial load, skip
+      if (currentUserId === lastUserId.current && !loadingRef.current && onboardingRef.current !== null) {
+        console.log('Oráculo: Skipping redundant auth state change');
+        return;
+      }
+      
+      console.log('Oráculo: handleAuthStateChange started', currentUser?.email);
+      lastUserId.current = currentUserId;
+      setLoading(true);
       
       const bypass = localStorage.getItem('ADMIN_BYPASS') === 'true';
       setIsBypass(bypass);
@@ -117,98 +152,119 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           };
           setUser(mockUser);
           setOnboardingCompleted(profile?.onboarding_completed ?? true);
+          setRole(profile?.role || 'admin');
+          setPlan(profile?.plan || 'premium');
         } catch (e) {
           setUser({ id: 'admin-bypass-id', email: 'admin@test.com' });
           setOnboardingCompleted(true);
+          setRole('admin');
+          setPlan('premium');
         }
         setLoading(false);
         return;
       }
 
-      let currentUser = session?.user ?? null;
-
-      // Silent Login for Admin if no session exists and not in bypass
-      if (!currentUser && sessionStorage.getItem('SKIP_SILENT_LOGIN') !== 'true') {
-        try {
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: 'word.intelligence@gmail.com',
-            password: '24Oliveir@'
-          });
-          if (!signInError && signInData.user) {
-            currentUser = signInData.user;
-          } else if (signInError) {
-            console.error('Oráculo: Silent login failed:', signInError);
-          }
-        } catch (e) {
-          console.error('Silent login exception:', e);
-        }
-      }
-
-      setUser(currentUser);
-      
+      // Use the currentUser already defined at the top of the function
       if (currentUser) {
-        sessionStorage.removeItem('SKIP_SILENT_LOGIN');
         try {
           const profile = await supabaseService.getProfile(currentUser.id);
           const isAdmin = currentUser.email === 'word.intelligence@gmail.com' || currentUser.email === 'yoelzayithivaldut@gmail.com';
           
           if (profile) {
             setOnboardingCompleted(isAdmin ? true : (profile.onboarding_completed ?? false));
+            setRole(profile.role || (isAdmin ? 'admin' : 'user'));
+            setPlan(profile.plan || (isAdmin ? 'premium' : 'free'));
           } else {
-            setOnboardingCompleted(isAdmin ? true : (currentUser.user_metadata?.onboarding_completed ?? false));
+            const isCompleted = isAdmin ? true : (currentUser.user_metadata?.onboarding_completed ?? false);
+            setOnboardingCompleted(isCompleted);
+            setRole(isAdmin ? 'admin' : 'user');
+            setPlan(isAdmin ? 'premium' : 'free');
           }
         } catch (e) {
+          console.error('Oráculo: Profile fetch error in handleAuthStateChange:', e);
           const isAdmin = currentUser.email === 'word.intelligence@gmail.com' || currentUser.email === 'yoelzayithivaldut@gmail.com';
-          setOnboardingCompleted(isAdmin ? true : (currentUser.user_metadata?.onboarding_completed ?? false));
+          const isCompleted = isAdmin ? true : (currentUser.user_metadata?.onboarding_completed ?? false);
+          setOnboardingCompleted(isCompleted);
+          setRole(isAdmin ? 'admin' : 'user');
+          setPlan(isAdmin ? 'premium' : 'free');
         }
       } else {
         setOnboardingCompleted(false);
+        setRole('user');
+        setPlan('free');
       }
+      
+      setUser(currentUser);
       setLoading(false);
     };
 
     // Initial check and subscription
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Oráculo: Auth state change event:', event, session?.user?.email);
+      
+      // If it's the initial session event and we already started getSession, ignore it
+      if (event === 'INITIAL_SESSION' && initialLoadStarted.current) {
+        console.log('Oráculo: Ignoring INITIAL_SESSION as getSession is already running');
+        return;
+      }
+      
       handleAuthStateChange(session);
     });
-
-    // Background connection test - don't block
-    (async () => {
-      try {
-        const { error } = await supabase.from('users').select('id').limit(1);
-        if (error) {
-          if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST204') {
-            supabaseService.handleSchemaError('users');
-          } else {
-            console.warn('Oráculo: Connection check warning:', error.message);
-          }
-        }
-      } catch (e) {}
-    })();
 
     // Initial fetch
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      handleAuthStateChange(session);
-    });
+    if (!initialLoadStarted.current) {
+      initialLoadStarted.current = true;
+      console.log('Oráculo: Initial session fetch started');
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        console.log('Oráculo: Initial session fetch complete:', session?.user?.email);
+        handleAuthStateChange(session);
+      }).catch(err => {
+        console.error('Oráculo: Initial session fetch error:', err);
+        if (isMounted) setLoading(false);
+      });
+    }
 
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []);
 
   useEffect(() => {
-    if (!loading) {
-      const isPublicPath = pathname === '/login' || pathname === '/auth/callback';
-      const isOnboardingPath = pathname === '/onboarding';
+    if (loading || onboardingCompleted === null) return;
+    
+    const isPublicPath = pathname === '/login' || pathname === '/auth/callback' || pathname === '/landing';
+    const isOnboardingPath = pathname === '/onboarding';
 
-      if (!user && !isPublicPath) {
+    console.log('Oráculo: Redirection check:', { 
+      hasUser: !!user, 
+      loading, 
+      onboardingCompleted, 
+      pathname 
+    });
+
+    if (!user) {
+      if (!isPublicPath && pathname !== '/') {
+        console.log('Oráculo: No user, redirecting to login');
         router.push('/login');
-      } else if (user && isPublicPath) {
-        const isCompleted = onboardingCompleted ?? user.user_metadata?.onboarding_completed ?? false;
-        router.push(isCompleted ? '/' : '/onboarding');
-      } else if (user && onboardingCompleted === false && !isOnboardingPath && !isPublicPath) {
-        router.push('/onboarding');
+      } else if (pathname === '/' && !isPublicPath) {
+        console.log('Oráculo: No user on root, redirecting to landing');
+        router.push('/landing');
+      }
+    } else {
+      // User is logged in
+      if (onboardingCompleted) {
+        if (isPublicPath || isOnboardingPath) {
+          console.log('Oráculo: Onboarding completed, redirecting to home/plans');
+          router.push(isOnboardingPath ? '/plans' : '/');
+        }
+      } else {
+        // Onboarding not completed
+        if (!isOnboardingPath) {
+          console.log('Oráculo: Onboarding not completed, redirecting to onboarding');
+          router.push('/onboarding');
+        }
       }
     }
   }, [user, loading, onboardingCompleted, pathname, router]);
@@ -229,11 +285,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loading,
     onboardingCompleted,
     isBypass,
+    role,
+    plan,
+    isUnlimited: role === 'admin' || plan === 'premium',
     refreshAuth,
     signOut
   };
 
-  if (loading || (user && onboardingCompleted === null)) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
         <motion.div

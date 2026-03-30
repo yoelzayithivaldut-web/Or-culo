@@ -23,7 +23,7 @@ import { useAuth } from '@/components/AuthProvider';
 
 export default function Onboarding() {
   const router = useRouter();
-  const { refreshAuth } = useAuth();
+  const { user: authUser, refreshAuth } = useAuth();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -37,28 +37,11 @@ export default function Onboarding() {
   const [educationLevel, setEducationLevel] = useState('');
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const isBypass = localStorage.getItem('ADMIN_BYPASS') === 'true';
-      if (isBypass) {
-        const bypassUser = {
-          id: 'admin-bypass-id',
-          email: 'admin@test.com',
-          user_metadata: { full_name: 'Administrador de Teste' }
-        };
-        setUser(bypassUser);
-        setAuthorName(bypassUser.user_metadata.full_name);
-      } else {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          router.push('/login');
-        } else {
-          setUser(user);
-          setAuthorName(user?.user_metadata?.full_name || '');
-        }
-      }
-    };
-    fetchUser();
-  }, [router]);
+    if (authUser) {
+      setUser(authUser);
+      setAuthorName(authUser?.user_metadata?.full_name || '');
+    }
+  }, [authUser]);
 
   useEffect(() => {
     const checkTable = async () => {
@@ -83,6 +66,8 @@ export default function Onboarding() {
   const handleComplete = async () => {
     setIsLoading(true);
     try {
+      console.log('Oráculo: Completing onboarding...', { authorName, mainGenre, writingGoal });
+      
       await supabaseService.saveUser({
         display_name: authorName,
         main_genre: mainGenre,
@@ -96,6 +81,7 @@ export default function Onboarding() {
       // Update auth metadata too if not in bypass mode
       if (localStorage.getItem('ADMIN_BYPASS') !== 'true') {
         try {
+          console.log('Oráculo: Updating auth metadata...');
           const { error: authError } = await supabase.auth.updateUser({
             data: { onboarding_completed: true }
           });
@@ -111,13 +97,15 @@ export default function Onboarding() {
       toast.success('Perfil configurado com sucesso!');
       
       // Refresh auth state to update onboardingCompleted
+      console.log('Oráculo: Refreshing auth state...');
       try {
         await refreshAuth();
+        // AuthProvider will handle the final redirection to /plans
       } catch (e) {
         console.error('Auth refresh failed after onboarding:', e);
+        // Fallback if refresh fails
+        router.push('/plans');
       }
-
-      router.push('/plans');
     } catch (error: any) {
       console.error('Onboarding save error:', error);
       toast.error(`Erro ao salvar perfil: ${error.message || 'Erro desconhecido'}`);
