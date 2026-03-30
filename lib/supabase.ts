@@ -5,15 +5,18 @@ import { createClient } from '@supabase/supabase-js';
 // -----------------------------------------------------------------------------
 
 // Hardcoded credentials provided for the project.
-const FALLBACK_URL = 'https://pokahkejkjwjrdxochda.supabase.co';
-const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBva2Foa2Vqa2p3anJkeG9jaGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDY0OTMsImV4cCI6MjA4OTg4MjQ5M30.MrH7ZF5rMHakCFPVX2uRz_ArzepuCDQNvJHym_OB2_s';
-const FALLBACK_PUBLISHABLE_KEY = 'sb_publishable_ra1ZD7iIGVgnMxaijbTO3Q_4rsqmFW-';
+const FALLBACK_URL = 'https://nmlhktkxdsjomjocyzjh.supabase.co';
+const FALLBACK_KEY = 'sb_publishable_XSQj_4slNyjsfeE5e2jxrA_kdJiF_z9';
+const FALLBACK_PUBLISHABLE_KEY = 'sb_publishable_XSQj_4slNyjsfeE5e2jxrA_kdJiF_z9';
 
 const getSupabaseConfig = () => {
   // 1. Check Environment Variables (Primary)
   const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const envKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-  const envPublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const envKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+                 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+                 process.env.VITE_SUPABASE_ANON_KEY;
+  const envPublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+                            process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
   
   // 2. Check Local Storage (Debug/Manual Override)
   const localUrl = typeof window !== 'undefined' ? localStorage.getItem('SUPABASE_URL') : null;

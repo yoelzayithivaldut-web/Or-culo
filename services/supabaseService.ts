@@ -21,7 +21,7 @@ const getMockData = (table: string) => {
       { id: 'client-1', name: 'João Silva', email: 'joao@exemplo.com', owner_id: 'admin-bypass-id', created_at: new Date().toISOString() },
     ];
   }
-  if (table === 'users') {
+  if (table === 'profiles') {
     return [
       { 
         id: 'admin-bypass-id', 
@@ -46,13 +46,13 @@ const saveMockData = (table: string, data: any[]) => {
 // Initialize mock data
 let mockBooks = getMockData('books');
 let mockClients = getMockData('clients');
-let mockUsers = getMockData('users');
+let mockProfiles = getMockData('profiles');
 
 const listeners: { [key: string]: { callback: (data: any[]) => void; filter: { column: string; value: any } }[] } = {};
 
 const notifyListeners = (table: string) => {
   if (listeners[table]) {
-    const allData: any[] = table === 'books' ? mockBooks : (table === 'clients' ? mockClients : mockUsers);
+    const allData: any[] = table === 'books' ? mockBooks : (table === 'clients' ? mockClients : mockProfiles);
     listeners[table].forEach(({ callback, filter }) => {
       const filteredData = allData.filter(item => item[filter.column] === filter.value);
       callback([...filteredData]);
@@ -76,7 +76,7 @@ export const supabaseService = {
 
   async getDocument(table: string, id: string) {
     if (isBypass()) {
-      const data: any[] = table === 'books' ? mockBooks : (table === 'clients' ? mockClients : mockUsers);
+      const data: any[] = table === 'books' ? mockBooks : (table === 'clients' ? mockClients : mockProfiles);
       return data.find(item => item.id === id) || null;
     }
     const { data, error } = await supabase
@@ -97,7 +97,7 @@ export const supabaseService = {
 
   async getCollection(table: string, filters: { column: string; operator: string; value: any }[] = []) {
     if (isBypass()) {
-      let data: any[] = table === 'books' ? [...mockBooks] : (table === 'clients' ? [...mockClients] : [...mockUsers]);
+      let data: any[] = table === 'books' ? [...mockBooks] : (table === 'clients' ? [...mockClients] : [...mockProfiles]);
       filters.forEach(filter => {
         if (filter.operator === '==') {
           data = data.filter(item => item[filter.column] === filter.value);
@@ -146,9 +146,9 @@ export const supabaseService = {
       } else if (table === 'clients') {
         mockClients.push(newItem);
         saveMockData('clients', mockClients);
-      } else if (table === 'users') {
-        mockUsers.push(newItem);
-        saveMockData('users', mockUsers);
+      } else if (table === 'profiles') {
+        mockProfiles.push(newItem);
+        saveMockData('profiles', mockProfiles);
       }
       notifyListeners(table);
       return id;
@@ -195,14 +195,14 @@ export const supabaseService = {
   async saveUser(userData: any) {
     if (isBypass()) {
       const id = 'admin-bypass-id';
-      const existingIndex = mockUsers.findIndex(u => u.id === id);
+      const existingIndex = mockProfiles.findIndex(u => u.id === id);
       if (existingIndex >= 0) {
-        mockUsers[existingIndex] = { ...mockUsers[existingIndex], ...userData, updated_at: new Date().toISOString() };
+        mockProfiles[existingIndex] = { ...mockProfiles[existingIndex], ...userData, updated_at: new Date().toISOString() };
       } else {
-        mockUsers.push({ id, email: 'admin@test.com', ...userData, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+        mockProfiles.push({ id, email: 'admin@test.com', ...userData, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
       }
-      saveMockData('users', mockUsers);
-      notifyListeners('users');
+      saveMockData('profiles', mockProfiles);
+      notifyListeners('profiles');
       return;
     }
     const { data: { user } } = await supabase.auth.getUser();
@@ -213,7 +213,7 @@ export const supabaseService = {
     
     console.log('Oráculo: Saving user data:', { id, email, ...userData });
     const { error } = await supabase
-      .from('users')
+      .from('profiles')
       .upsert({
         id,
         email,
@@ -223,7 +223,7 @@ export const supabaseService = {
 
     if (error) {
       if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST204') {
-        this.handleSchemaError('users');
+        this.handleSchemaError('profiles');
       }
       console.error('Error saving user to Supabase:', {
         error,
@@ -241,7 +241,7 @@ export const supabaseService = {
   async getProfile(userId?: string) {
     if (isBypass()) {
       const id = 'admin-bypass-id';
-      return mockUsers.find(u => u.id === id) || {
+      return mockProfiles.find(u => u.id === id) || {
         id: 'admin-bypass-id',
         email: 'admin@test.com',
         display_name: 'Administrador de Teste',
@@ -266,14 +266,14 @@ export const supabaseService = {
     }
 
     const { data, error } = await supabase
-      .from('users')
+      .from('profiles')
       .select('*')
       .eq('id', id)
       .single();
 
     if (error) {
       if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST204') {
-        this.handleSchemaError('users');
+        this.handleSchemaError('profiles');
       }
       if (error.code !== 'PGRST116') {
         console.error('Error fetching profile:', error);
@@ -305,9 +305,9 @@ export const supabaseService = {
       } else if (table === 'clients') {
         mockClients = mockClients.map(item => item.id === id ? { ...item, ...data, updated_at: new Date().toISOString() } : item);
         saveMockData('clients', mockClients);
-      } else if (table === 'users') {
-        mockUsers = mockUsers.map(item => item.id === id ? { ...item, ...data, updated_at: new Date().toISOString() } : item);
-        saveMockData('users', mockUsers);
+      } else if (table === 'profiles') {
+        mockProfiles = mockProfiles.map(item => item.id === id ? { ...item, ...data, updated_at: new Date().toISOString() } : item);
+        saveMockData('profiles', mockProfiles);
       }
       notifyListeners(table);
       return;
@@ -334,9 +334,9 @@ export const supabaseService = {
       } else if (table === 'clients') {
         mockClients = mockClients.filter(item => item.id !== id);
         saveMockData('clients', mockClients);
-      } else if (table === 'users') {
-        mockUsers = mockUsers.filter(item => item.id !== id);
-        saveMockData('users', mockUsers);
+      } else if (table === 'profiles') {
+        mockProfiles = mockProfiles.filter(item => item.id !== id);
+        saveMockData('profiles', mockProfiles);
       }
       notifyListeners(table);
       return;
@@ -360,7 +360,7 @@ export const supabaseService = {
       if (!listeners[table]) listeners[table] = [];
       listeners[table].push({ callback, filter });
       
-      const allData: any[] = table === 'books' ? mockBooks : (table === 'clients' ? mockClients : mockUsers);
+      const allData: any[] = table === 'books' ? mockBooks : (table === 'clients' ? mockClients : mockProfiles);
       callback(allData.filter(item => item[filter.column] === filter.value));
       
       return () => {
