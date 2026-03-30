@@ -44,7 +44,7 @@ const data = [
   { name: 'Dom', words: 3200 },
 ];
 
-const StatCard = ({ icon: Icon, label, value, trend, colorClass }: any) => (
+const StatCard = ({ icon: Icon, label, value, trend, colorClass, isLoading }: any) => (
   <motion.div
     whileHover={{ y: -5 }}
     className="bg-[#0A0A0A] border border-white/10 p-5 md:p-6 rounded-3xl relative overflow-hidden group"
@@ -54,7 +54,7 @@ const StatCard = ({ icon: Icon, label, value, trend, colorClass }: any) => (
       <div className={cn("p-2.5 md:p-3 rounded-2xl bg-white/5", colorClass.text)}>
         <Icon className="w-5 h-5 md:w-6 md:h-6" />
       </div>
-      {trend && (
+      {trend && !isLoading && (
         <div className="flex items-center gap-1 text-green-500 text-xs md:text-sm font-medium">
           <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4" />
           {trend}
@@ -63,13 +63,18 @@ const StatCard = ({ icon: Icon, label, value, trend, colorClass }: any) => (
     </div>
     <div className="space-y-0.5 md:space-y-1">
       <p className="text-gray-400 text-[10px] md:text-sm font-medium uppercase tracking-wider">{label}</p>
-      <h3 className="text-2xl md:text-3xl font-bold text-white">{value}</h3>
+      {isLoading ? (
+        <div className="h-8 w-16 bg-white/5 animate-pulse rounded-lg" />
+      ) : (
+        <h3 className="text-2xl md:text-3xl font-bold text-white">{value}</h3>
+      )}
     </div>
   </motion.div>
 );
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
     books: 0,
     clients: 0,
@@ -81,6 +86,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (user) {
+      setIsLoading(true);
       const unsubscribeBooks = supabaseService.subscribeToCollection(
         'books', 
         { column: 'owner_id', value: user.id },
@@ -90,6 +96,7 @@ export default function Dashboard() {
             new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()
           ).slice(0, 3);
           setRecentBooks(sorted);
+          setIsLoading(false);
         }
       );
 
@@ -98,6 +105,7 @@ export default function Dashboard() {
         { column: 'owner_id', value: user.id },
         (clients) => {
           setStats(prev => ({ ...prev, clients: clients?.length || 0 }));
+          setIsLoading(false);
         }
       );
 
@@ -132,10 +140,10 @@ export default function Dashboard() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={BookOpen} label="Livros Criados" value={stats.books} trend="+2 este mês" colorClass={colors.gold} />
-        <StatCard icon={Users} label="Clientes Ativos" value={stats.clients} trend="+12%" colorClass={colors.blue} />
-        <StatCard icon={Clock} label="Palavras Escritas" value={stats.words} trend="+5.2k" colorClass={colors.purple} />
-        <StatCard icon={Languages} label="Idiomas" value={stats.languages} colorClass={colors.green} />
+        <StatCard icon={BookOpen} label="Livros Criados" value={stats.books} trend="+2 este mês" colorClass={colors.gold} isLoading={isLoading} />
+        <StatCard icon={Users} label="Clientes Ativos" value={stats.clients} trend="+12%" colorClass={colors.blue} isLoading={isLoading} />
+        <StatCard icon={Clock} label="Palavras Escritas" value={stats.words} trend="+5.2k" colorClass={colors.purple} isLoading={isLoading} />
+        <StatCard icon={Languages} label="Idiomas" value={stats.languages} colorClass={colors.green} isLoading={isLoading} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

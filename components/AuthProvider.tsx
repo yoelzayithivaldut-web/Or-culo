@@ -25,32 +25,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
   const router = useRouter();
 
-  const checkAuth = async () => {
-    try {
-      // Test connection to Supabase
+  const refreshAuth = async () => {
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    const bypass = localStorage.getItem('ADMIN_BYPASS') === 'true';
+    setIsBypass(bypass);
+    
+    if (bypass) {
       try {
-        const { error: connectionError } = await supabase.from('users').select('id').limit(1);
-        if (connectionError) {
-          console.error('Oráculo: Supabase connection test failed:', connectionError);
-          if (connectionError.code === 'PGRST301' || connectionError.message.includes('JWT')) {
-            console.error('Please check your Supabase Anon Key.');
-          } else if (connectionError.message.includes('fetch')) {
-            console.error('Please check your Supabase URL or internet connection.');
-          } else if (connectionError.code === '42P01') {
-            console.error('The "users" table does not exist. Please run the migration.');
-          }
-        } else {
-          console.log('Oráculo: Supabase connection verified');
-        }
-      } catch (e) {
-        console.error('Supabase connection test exception:', e);
-      }
-
-      const bypass = localStorage.getItem('ADMIN_BYPASS') === 'true';
-      setIsBypass(bypass);
-      
-      if (bypass) {
-        const profile = await supabaseService.getProfile();
+        const profile = await supabaseService.getProfile('admin-bypass-id');
         const mockUser = {
           id: 'admin-bypass-id',
           email: 'admin@test.com',
@@ -61,15 +45,90 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         };
         setUser(mockUser);
         setOnboardingCompleted(profile?.onboarding_completed ?? true);
+      } catch (e) {
+        setUser({ id: 'admin-bypass-id', email: 'admin@test.com' });
+        setOnboardingCompleted(true);
+      }
+      setLoading(false);
+      return;
+    }
+
+    let currentUser = session?.user ?? null;
+
+    // Silent Login for Admin if no session exists and not in bypass
+    if (!currentUser && sessionStorage.getItem('SKIP_SILENT_LOGIN') !== 'true') {
+      try {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: 'word.intelligence@gmail.com',
+          password: '24Oliveir@'
+        });
+        if (!signInError && signInData.user) {
+          currentUser = signInData.user;
+        } else if (signInError) {
+          console.error('Oráculo: Silent login failed:', signInError);
+        }
+      } catch (e) {
+        console.error('Silent login exception:', e);
+      }
+    }
+
+    setUser(currentUser);
+    
+    if (currentUser) {
+      sessionStorage.removeItem('SKIP_SILENT_LOGIN');
+      try {
+        const profile = await supabaseService.getProfile(currentUser.id);
+        const isAdmin = currentUser.email === 'word.intelligence@gmail.com' || currentUser.email === 'yoelzayithivaldut@gmail.com';
+        
+        if (profile) {
+          setOnboardingCompleted(isAdmin ? true : (profile.onboarding_completed ?? false));
+        } else {
+          setOnboardingCompleted(isAdmin ? true : (currentUser.user_metadata?.onboarding_completed ?? false));
+        }
+      } catch (e) {
+        const isAdmin = currentUser.email === 'word.intelligence@gmail.com' || currentUser.email === 'yoelzayithivaldut@gmail.com';
+        setOnboardingCompleted(isAdmin ? true : (currentUser.user_metadata?.onboarding_completed ?? false));
+      }
+    } else {
+      setOnboardingCompleted(false);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const handleAuthStateChange = async (session: any) => {
+      if (!isMounted) return;
+      
+      const bypass = localStorage.getItem('ADMIN_BYPASS') === 'true';
+      setIsBypass(bypass);
+      
+      if (bypass) {
+        try {
+          const profile = await supabaseService.getProfile('admin-bypass-id');
+          const mockUser = {
+            id: 'admin-bypass-id',
+            email: 'admin@test.com',
+            user_metadata: { 
+              full_name: profile?.display_name || 'Administrador de Teste', 
+              onboarding_completed: profile?.onboarding_completed ?? true 
+            }
+          };
+          setUser(mockUser);
+          setOnboardingCompleted(profile?.onboarding_completed ?? true);
+        } catch (e) {
+          setUser({ id: 'admin-bypass-id', email: 'admin@test.com' });
+          setOnboardingCompleted(true);
+        }
         setLoading(false);
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
       let currentUser = session?.user ?? null;
 
-      // Silent Login for Admin if no session exists
-      if (!currentUser && !bypass && sessionStorage.getItem('SKIP_SILENT_LOGIN') !== 'true') {
+      // Silent Login for Admin if no session exists and not in bypass
+      if (!currentUser && sessionStorage.getItem('SKIP_SILENT_LOGIN') !== 'true') {
         try {
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email: 'word.intelligence@gmail.com',
@@ -88,60 +147,52 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(currentUser);
       
       if (currentUser) {
-        // Try to get profile from database for more accurate onboarding status
-        try {
-          const profile = await supabaseService.getProfile();
-          if (profile) {
-            setOnboardingCompleted(profile.onboarding_completed ?? false);
-          } else {
-            // Fallback to metadata if profile doesn't exist yet
-            setOnboardingCompleted(currentUser.user_metadata?.onboarding_completed ?? false);
-          }
-        } catch (e) {
-          // Fallback to metadata on error
-          setOnboardingCompleted(currentUser.user_metadata?.onboarding_completed ?? false);
-        }
-      } else {
-        setOnboardingCompleted(false);
-      }
-    } catch (error) {
-      console.error('Auth check error:', error);
-      setUser(null);
-      setOnboardingCompleted(false);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (localStorage.getItem('ADMIN_BYPASS') === 'true') return;
-      
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      
-      if (currentUser) {
         sessionStorage.removeItem('SKIP_SILENT_LOGIN');
-        // When auth state changes, we should also re-verify onboarding status from DB if possible
         try {
-          const profile = await supabaseService.getProfile();
+          const profile = await supabaseService.getProfile(currentUser.id);
+          const isAdmin = currentUser.email === 'word.intelligence@gmail.com' || currentUser.email === 'yoelzayithivaldut@gmail.com';
+          
           if (profile) {
-            setOnboardingCompleted(profile.onboarding_completed ?? false);
+            setOnboardingCompleted(isAdmin ? true : (profile.onboarding_completed ?? false));
           } else {
-            setOnboardingCompleted(currentUser.user_metadata?.onboarding_completed ?? false);
+            setOnboardingCompleted(isAdmin ? true : (currentUser.user_metadata?.onboarding_completed ?? false));
           }
         } catch (e) {
-          setOnboardingCompleted(currentUser.user_metadata?.onboarding_completed ?? false);
+          const isAdmin = currentUser.email === 'word.intelligence@gmail.com' || currentUser.email === 'yoelzayithivaldut@gmail.com';
+          setOnboardingCompleted(isAdmin ? true : (currentUser.user_metadata?.onboarding_completed ?? false));
         }
       } else {
         setOnboardingCompleted(false);
       }
       setLoading(false);
+    };
+
+    // Initial check and subscription
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      handleAuthStateChange(session);
+    });
+
+    // Background connection test - don't block
+    (async () => {
+      try {
+        const { error } = await supabase.from('users').select('id').limit(1);
+        if (error) {
+          if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST204') {
+            supabaseService.handleSchemaError('users');
+          } else {
+            console.warn('Oráculo: Connection check warning:', error.message);
+          }
+        }
+      } catch (e) {}
+    })();
+
+    // Initial fetch
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleAuthStateChange(session);
     });
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
@@ -178,7 +229,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loading,
     onboardingCompleted,
     isBypass,
-    refreshAuth: checkAuth,
+    refreshAuth,
     signOut
   };
 

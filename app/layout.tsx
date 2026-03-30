@@ -4,6 +4,7 @@ import './globals.css';
 import { Toaster } from 'sonner';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { AuthProvider } from '@/components/AuthProvider';
+import { DatabaseSetupOverlay } from '@/components/DatabaseSetupOverlay';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -21,6 +22,7 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={inter.className}>
         <ErrorBoundary>
+          <DatabaseSetupOverlay />
           <AuthProvider>
             <Toaster position="top-right" theme="dark" richColors />
             {children}

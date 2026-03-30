@@ -1,25 +1,32 @@
--- Create profiles table
-create table profiles (
+-- Create users table (Profile)
+create table users (
   id uuid references auth.users on delete cascade primary key,
-  full_name text,
-  avatar_url text,
+  email text unique not null,
+  display_name text,
+  onboarding_completed boolean default false,
+  address text,
+  phone text,
+  education_level text,
+  main_genre text,
+  writing_goal text,
+  plan text default 'free',
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Set up Row Level Security (RLS) for profiles
-alter table profiles enable row level security;
+-- Set up Row Level Security (RLS) for users
+alter table users enable row level security;
 
-create policy "Public profiles are viewable by everyone."
-  on profiles for select
-  using ( true );
+create policy "Users can only read their own data"
+  on users for select
+  using ( auth.uid() = id );
 
-create policy "Users can insert their own profile."
-  on profiles for insert
+create policy "Users can insert their own data"
+  on users for insert
   with check ( auth.uid() = id );
 
-create policy "Users can update own profile."
-  on profiles for update
+create policy "Users can update their own data"
+  on users for update
   using ( auth.uid() = id );
 
 -- Create books table
@@ -27,8 +34,13 @@ create table books (
   id uuid default gen_random_uuid() primary key,
   owner_id uuid references auth.users on delete cascade not null,
   title text not null,
+  author text,
+  genre text,
+  synopsis text,
   content text,
-  status text default 'draft',
+  status text default 'writing',
+  language text default 'pt-BR',
+  cover_url text,
   progress integer default 0,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
@@ -59,6 +71,7 @@ create table clients (
   owner_id uuid references auth.users on delete cascade not null,
   name text not null,
   email text,
+  notes text,
   phone text,
   status text default 'active',
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
@@ -88,8 +101,16 @@ create policy "Users can delete their own clients."
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, full_name, avatar_url)
-  values (new.id, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url');
+  insert into public.users (id, email, display_name, onboarding_completed)
+  values (
+    new.id, 
+    new.email, 
+    coalesce(new.raw_user_meta_data->>'full_name', new.email, 'Escritor'),
+    false
+  )
+  on conflict (id) do update set
+    email = excluded.email,
+    display_name = coalesce(excluded.display_name, public.users.display_name);
   return new;
 end;
 $$ language plpgsql security definer;

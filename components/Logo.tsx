@@ -6,18 +6,20 @@ import { cn } from '@/lib/utils';
 
 interface LogoProps {
   className?: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   showText?: boolean;
 }
 
 export function Logo({ className, size = 'md', showText = true }: LogoProps) {
   const sizes = {
+    xs: 'w-4 h-4',
     sm: 'w-6 h-6',
     md: 'w-8 h-8',
     lg: 'w-12 h-12'
   };
 
   const textSizes = {
+    xs: 'text-sm',
     sm: 'text-lg',
     md: 'text-2xl',
     lg: 'text-4xl'

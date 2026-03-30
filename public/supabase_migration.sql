@@ -6,16 +6,33 @@ CREATE TABLE IF NOT EXISTS public.users (
     id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
     display_name TEXT,
-    address TEXT,
-    phone TEXT,
-    education_level TEXT,
-    main_genre TEXT,
-    writing_goal TEXT,
     onboarding_completed BOOLEAN DEFAULT false,
-    plan TEXT DEFAULT 'free',
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Robust column check and addition
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='address') THEN
+        ALTER TABLE public.users ADD COLUMN address TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='phone') THEN
+        ALTER TABLE public.users ADD COLUMN phone TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='education_level') THEN
+        ALTER TABLE public.users ADD COLUMN education_level TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='main_genre') THEN
+        ALTER TABLE public.users ADD COLUMN main_genre TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='writing_goal') THEN
+        ALTER TABLE public.users ADD COLUMN writing_goal TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='plan') THEN
+        ALTER TABLE public.users ADD COLUMN plan TEXT DEFAULT 'free';
+    END IF;
+END $$;
 
 -- Enable RLS for users
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -129,3 +146,23 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 5. Sync existing users (for those who signed up before the trigger existed)
+INSERT INTO public.users (id, email, display_name, onboarding_completed)
+SELECT 
+    id, 
+    email, 
+    COALESCE(raw_user_meta_data->>'full_name', email, 'Escritor'),
+    false
+FROM auth.users
+ON CONFLICT (id) DO NOTHING;
+
+-- 6. Final Permissions & Cache Refresh
+-- Ensure the API has access to everything in public schema
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
+
+-- Force PostgREST to reload the schema cache
+NOTIFY pgrst, 'reload schema';

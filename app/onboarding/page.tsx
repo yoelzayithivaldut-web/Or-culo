@@ -64,8 +64,14 @@ export default function Onboarding() {
     const checkTable = async () => {
       try {
         const { error } = await supabase.from('users').select('id').limit(1);
-        if (error && error.code === '42P01') {
-          toast.error('A tabela "users" não foi encontrada no Supabase. Por favor, execute a migração SQL.');
+        if (error) {
+          if (error.code === '42P01' || error.code === 'PGRST205' || error.code === 'PGRST204') {
+            console.error('Oráculo: Tabela ou coluna em "users" não encontrada.');
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('SHOW_DB_SETUP', 'true');
+              window.dispatchEvent(new CustomEvent('supabase-schema-error', { detail: { table: 'users' } }));
+            }
+          }
         }
       } catch (e) {
         console.error('Error checking users table:', e);

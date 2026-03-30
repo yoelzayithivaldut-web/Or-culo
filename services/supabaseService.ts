@@ -58,7 +58,20 @@ const notifyListeners = (table: string) => {
   }
 };
 
+let profileCache: { [key: string]: { data: any; timestamp: number } } = {};
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export const supabaseService = {
+  handleSchemaError(table: string) {
+    console.error(`Oráculo: Tabela ou coluna em "${table}" não encontrada ou cache da API desatualizado.`);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('SHOW_DB_SETUP', 'true');
+      window.dispatchEvent(new CustomEvent('supabase-schema-error', { detail: { table } }));
+    }
+    toast.error(`Estrutura do banco de dados em "${table}" desatualizada. Por favor, execute o script SQL de migração no painel do Supabase.`);
+    throw new Error(`Estrutura do banco de dados em "${table}" desatualizada.`);
+  },
+
   async getDocument(table: string, id: string) {
     if (isBypass()) {
       const data: any[] = table === 'books' ? mockBooks : (table === 'clients' ? mockClients : mockUsers);
@@ -71,6 +84,9 @@ export const supabaseService = {
       .single();
 
     if (error) {
+      if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST204') {
+        this.handleSchemaError(table);
+      }
       console.error(`Error fetching document from ${table}:`, error);
       throw error;
     }
@@ -109,6 +125,9 @@ export const supabaseService = {
     const { data, error } = await query;
 
     if (error) {
+      if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST204') {
+        this.handleSchemaError(table);
+      }
       console.error(`Error fetching collection from ${table}:`, error);
       throw error;
     }
@@ -139,6 +158,9 @@ export const supabaseService = {
       .single();
 
     if (error) {
+      if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST204') {
+        this.handleSchemaError(table);
+      }
       console.error(`Error adding document to ${table}:`, error);
       toast.error(`Erro ao salvar em ${table}: ${error.message} (${error.code})`);
       throw new Error(`Erro ao adicionar documento em ${table}: ${error.message}`);
@@ -198,6 +220,9 @@ export const supabaseService = {
       }, { onConflict: 'id' });
 
     if (error) {
+      if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST204') {
+        this.handleSchemaError('users');
+      }
       console.error('Error saving user to Supabase:', {
         error,
         userId: id,
@@ -206,9 +231,12 @@ export const supabaseService = {
       });
       throw new Error(`Erro ao salvar dados do usuário: ${error.message} (${error.code})`);
     }
+
+    // Clear cache after successful update
+    this.clearProfileCache(id);
   },
 
-  async getProfile() {
+  async getProfile(userId?: string) {
     if (isBypass()) {
       const id = 'admin-bypass-id';
       return mockUsers.find(u => u.id === id) || {
@@ -219,21 +247,50 @@ export const supabaseService = {
         created_at: new Date().toISOString()
       };
     }
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
 
-    const id = user.id;
+    let id = userId;
+    if (!id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      id = user.id;
+    }
+
+    // Check cache
+    const cached = profileCache[id];
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
+
     const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('id', id)
       .single();
 
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching profile:', error);
-      throw error;
+    if (error) {
+      if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST204') {
+        this.handleSchemaError('users');
+      }
+      if (error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error);
+        throw error;
+      }
     }
+
+    // Update cache
+    if (data) {
+      profileCache[id] = { data, timestamp: Date.now() };
+    }
+    
     return data;
+  },
+
+  clearProfileCache(userId?: string) {
+    if (userId) {
+      delete profileCache[userId];
+    } else {
+      profileCache = {};
+    }
   },
 
   async updateDocument(table: string, id: string, data: any) {
@@ -257,6 +314,9 @@ export const supabaseService = {
       .eq('id', id);
 
     if (error) {
+      if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST204') {
+        this.handleSchemaError(table);
+      }
       console.error(`Error updating document in ${table}:`, error);
       throw error;
     }
@@ -283,6 +343,9 @@ export const supabaseService = {
       .eq('id', id);
 
     if (error) {
+      if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST204') {
+        this.handleSchemaError(table);
+      }
       console.error(`Error deleting document from ${table}:`, error);
       throw error;
     }
@@ -306,7 +369,14 @@ export const supabaseService = {
       .from(table)
       .select('*')
       .eq(filter.column, filter.value)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST204') {
+            this.handleSchemaError(table);
+          }
+          console.error(`Error in initial fetch for ${table}:`, error);
+          return;
+        }
         if (data) callback(data);
       });
 
